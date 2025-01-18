@@ -50,7 +50,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     );
   }
 
-  test('suspend commit during initial mount', async () => {
+  it('suspend commit during initial mount', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       startTransition(() => {
@@ -70,7 +70,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
   });
 
-  test('suspend commit during update', async () => {
+  it('suspend commit during update', async () => {
     const root = ReactNoop.createRoot();
     await act(() => resolveSuspenseyThing('A'));
     await act(async () => {
@@ -105,7 +105,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
   });
 
-  test('suspend commit during initial mount at the root', async () => {
+  it('suspend commit during initial mount at the root', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       startTransition(() => {
@@ -121,7 +121,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
   });
 
-  test('suspend commit during update at the root', async () => {
+  it('suspend commit during update at the root', async () => {
     const root = ReactNoop.createRoot();
     await act(() => resolveSuspenseyThing('A'));
     expect(getSuspenseyThingStatus('A')).toBe('fulfilled');
@@ -147,7 +147,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
   });
 
-  test('suspend commit during urgent initial mount', async () => {
+  it('suspend commit during urgent initial mount', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       root.render(
@@ -165,7 +165,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
   });
 
-  test('suspend commit during urgent update', async () => {
+  it('suspend commit during urgent update', async () => {
     const root = ReactNoop.createRoot();
     await act(() => resolveSuspenseyThing('A'));
     expect(getSuspenseyThingStatus('A')).toBe('fulfilled');
@@ -203,7 +203,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
   });
 
-  test('suspends commit during urgent initial mount at the root', async () => {
+  it('suspends commit during urgent initial mount at the root', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       root.render(<SuspenseyImage src="A" />);
@@ -217,7 +217,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
   });
 
-  test('suspends commit during urgent update at the root', async () => {
+  it('suspends commit during urgent update at the root', async () => {
     const root = ReactNoop.createRoot();
     await act(() => resolveSuspenseyThing('A'));
     expect(getSuspenseyThingStatus('A')).toBe('fulfilled');
@@ -239,11 +239,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
   });
 
-  // @TODO This isn't actually ideal behavior. We would really want the commit to suspend
-  // even if it is forced to be sync because we don't want to FOUC but refactoring the sync
-  // pathway is too risky to land right now so we just accept that we can still FOUC in this
-  // very specific case.
-  test('does not suspend commit during urgent initial mount at the root when sync rendering', async () => {
+  it('does suspend commit during urgent initial mount at the root when sync rendering', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       ReactNoop.flushSync(() => {
@@ -252,19 +248,15 @@ describe('ReactSuspenseyCommitPhase', () => {
     });
     assertLog(['Image requested [A]']);
     expect(getSuspenseyThingStatus('A')).toBe('pending');
-    // We would expect this to be null if we did in fact suspend this commit
-    expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
+    // Suspend the initial mount
+    expect(root).toMatchRenderedOutput(null);
 
     resolveSuspenseyThing('A');
     expect(getSuspenseyThingStatus('A')).toBe('fulfilled');
     expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
   });
 
-  // @TODO This isn't actually ideal behavior. We would really want the commit to suspend
-  // even if it is forced to be sync because we don't want to FOUC but refactoring the sync
-  // pathway is too risky to land right now so we just accept that we can still FOUC in this
-  // very specific case.
-  test('does not suspend commit during urgent update at the root when sync rendering', async () => {
+  it('does suspend commit during urgent update at the root when sync rendering', async () => {
     const root = ReactNoop.createRoot();
     await act(() => resolveSuspenseyThing('A'));
     expect(getSuspenseyThingStatus('A')).toBe('fulfilled');
@@ -283,15 +275,15 @@ describe('ReactSuspenseyCommitPhase', () => {
     });
     assertLog(['Image requested [B]']);
     expect(getSuspenseyThingStatus('B')).toBe('pending');
-    // We would expect this to be hidden if we did in fact suspend this commit
-    expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
+    // Suspend and remain on previous screen
+    expect(root).toMatchRenderedOutput(<suspensey-thing src="A" />);
 
     resolveSuspenseyThing('B');
     expect(getSuspenseyThingStatus('B')).toBe('fulfilled');
     expect(root).toMatchRenderedOutput(<suspensey-thing src="B" />);
   });
 
-  test('an urgent update interrupts a suspended commit', async () => {
+  it('an urgent update interrupts a suspended commit', async () => {
     const root = ReactNoop.createRoot();
 
     // Mount an image. This transition will suspend because it's not inside a
@@ -313,7 +305,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     expect(root).toMatchRenderedOutput('Something else');
   });
 
-  test('a transition update interrupts a suspended commit', async () => {
+  it('a transition update interrupts a suspended commit', async () => {
     const root = ReactNoop.createRoot();
 
     // Mount an image. This transition will suspend because it's not inside a
@@ -338,7 +330,7 @@ describe('ReactSuspenseyCommitPhase', () => {
   });
 
   // @gate enableSuspenseList
-  test('demonstrate current behavior when used with SuspenseList (not ideal)', async () => {
+  it('demonstrate current behavior when used with SuspenseList (not ideal)', async () => {
     function App() {
       return (
         <SuspenseList revealOrder="forwards">
@@ -389,7 +381,7 @@ describe('ReactSuspenseyCommitPhase', () => {
     );
   });
 
-  test('avoid triggering a fallback if resource loads immediately', async () => {
+  it('avoid triggering a fallback if resource loads immediately', async () => {
     const root = ReactNoop.createRoot();
     await act(async () => {
       startTransition(() => {
@@ -438,7 +430,7 @@ describe('ReactSuspenseyCommitPhase', () => {
   });
 
   // @gate enableActivity
-  test("host instances don't suspend during prerendering, but do suspend when they are revealed", async () => {
+  it("host instances don't suspend during prerendering, but do suspend when they are revealed", async () => {
     function More() {
       Scheduler.log('More');
       return <SuspenseyImage src="More" />;
@@ -496,6 +488,48 @@ describe('ReactSuspenseyCommitPhase', () => {
       <>
         <div>Main Content</div>
         <suspensey-thing src="More" />
+      </>,
+    );
+  });
+
+  // FIXME: Should pass with `enableYieldingBeforePassive`
+  // @gate !enableYieldingBeforePassive
+  it('runs passive effects after suspended commit resolves', async () => {
+    function Effect() {
+      React.useEffect(() => {
+        Scheduler.log('flush effect');
+      });
+      return <Text text="render effect" />;
+    }
+
+    const root = ReactNoop.createRoot();
+
+    await act(() => {
+      root.render(
+        <Suspense fallback={<Text text="Loading..." />}>
+          <Effect />
+          <SuspenseyImage src="A" />
+        </Suspense>,
+      );
+    });
+
+    assertLog([
+      'render effect',
+      'Image requested [A]',
+      'Loading...',
+      'render effect',
+    ]);
+    expect(root).toMatchRenderedOutput('Loading...');
+
+    await act(() => {
+      resolveSuspenseyThing('A');
+    });
+
+    assertLog(['flush effect']);
+    expect(root).toMatchRenderedOutput(
+      <>
+        {'render effect'}
+        <suspensey-thing src="A" />
       </>,
     );
   });

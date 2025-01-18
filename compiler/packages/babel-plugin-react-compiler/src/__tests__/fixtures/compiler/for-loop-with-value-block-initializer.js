@@ -14,8 +14,40 @@ export const FIXTURE_ENTRYPOINT = {
     {
       start: null,
       items: [
-        { id: 0, value: "zero" },
-        { id: 1, value: "one" },
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+  ],
+  sequentialRenders: [
+    {
+      start: 1,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+    {
+      start: 2,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+    {
+      start: 0,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+        {id: 2, value: 'two'},
+      ],
+    },
+    {
+      start: 1,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+        {id: 2, value: 'two'},
       ],
     },
   ],

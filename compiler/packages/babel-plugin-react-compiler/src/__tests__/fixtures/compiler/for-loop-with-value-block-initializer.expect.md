@@ -18,8 +18,40 @@ export const FIXTURE_ENTRYPOINT = {
     {
       start: null,
       items: [
-        { id: 0, value: "zero" },
-        { id: 1, value: "one" },
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+  ],
+  sequentialRenders: [
+    {
+      start: 1,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+    {
+      start: 2,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+      ],
+    },
+    {
+      start: 0,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+        {id: 2, value: 'two'},
+      ],
+    },
+    {
+      start: 1,
+      items: [
+        {id: 0, value: 'zero'},
+        {id: 1, value: 'one'},
+        {id: 2, value: 'two'},
       ],
     },
   ],
@@ -33,27 +65,21 @@ export const FIXTURE_ENTRYPOINT = {
 import { c as _c } from "react/compiler-runtime";
 const TOTAL = 10;
 function Component(props) {
-  const $ = _c(5);
-  let items;
-  if ($[0] !== props.start || $[1] !== props.items) {
-    items = [];
+  const $ = _c(3);
+  let t0;
+  if ($[0] !== props.items || $[1] !== props.start) {
+    const items = [];
     for (let i = props.start ?? 0; i < props.items.length; i++) {
       const item = props.items[i];
       items.push(<div key={item.id}>{item.value}</div>);
     }
-    $[0] = props.start;
-    $[1] = props.items;
-    $[2] = items;
-  } else {
-    items = $[2];
-  }
-  let t0;
-  if ($[3] !== items) {
+
     t0 = <div>{items}</div>;
-    $[3] = items;
-    $[4] = t0;
+    $[0] = props.items;
+    $[1] = props.start;
+    $[2] = t0;
   } else {
-    t0 = $[4];
+    t0 = $[2];
   }
   return t0;
 }
@@ -69,9 +95,45 @@ export const FIXTURE_ENTRYPOINT = {
       ],
     },
   ],
+
+  sequentialRenders: [
+    {
+      start: 1,
+      items: [
+        { id: 0, value: "zero" },
+        { id: 1, value: "one" },
+      ],
+    },
+    {
+      start: 2,
+      items: [
+        { id: 0, value: "zero" },
+        { id: 1, value: "one" },
+      ],
+    },
+    {
+      start: 0,
+      items: [
+        { id: 0, value: "zero" },
+        { id: 1, value: "one" },
+        { id: 2, value: "two" },
+      ],
+    },
+    {
+      start: 1,
+      items: [
+        { id: 0, value: "zero" },
+        { id: 1, value: "one" },
+        { id: 2, value: "two" },
+      ],
+    },
+  ],
 };
 
 ```
       
 ### Eval output
-(kind: ok) <div><div>zero</div><div>one</div></div>
+(kind: ok) <div><div>one</div></div>
+<div></div>
+<div><div>zero</div><div>one</div><div>two</div></div>
+<div><div>one</div><div>two</div></div>

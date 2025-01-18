@@ -4,7 +4,7 @@
 ```javascript
 const someGlobal = true;
 export default function Component(props) {
-  const { b } = props;
+  const {b} = props;
   const items = [];
   let i = 0;
   while (i < 10) {
@@ -18,16 +18,16 @@ export default function Component(props) {
 
 export const FIXTURE_ENTRYPOINT = {
   fn: Component,
-  params: [{ b: 42 }],
+  params: [{b: 42}],
   sequentialRenders: [
-    { b: 0 },
-    { b: 0 },
-    { b: 42 },
-    { b: 42 },
-    { b: 0 },
-    { b: 42 },
-    { b: 0 },
-    { b: 42 },
+    {b: 0},
+    {b: 0},
+    {b: 42},
+    {b: 42},
+    {b: 0},
+    {b: 42},
+    {b: 0},
+    {b: 42},
   ],
 };
 
@@ -39,11 +39,11 @@ export const FIXTURE_ENTRYPOINT = {
 import { c as _c } from "react/compiler-runtime";
 const someGlobal = true;
 export default function Component(props) {
-  const $ = _c(4);
+  const $ = _c(2);
   const { b } = props;
-  let items;
+  let t0;
   if ($[0] !== b) {
-    items = [];
+    const items = [];
     let i = 0;
     while (i < 10) {
       if (someGlobal) {
@@ -51,18 +51,12 @@ export default function Component(props) {
         i++;
       }
     }
-    $[0] = b;
-    $[1] = items;
-  } else {
-    items = $[1];
-  }
-  let t0;
-  if ($[2] !== items) {
+
     t0 = <>{items}</>;
-    $[2] = items;
-    $[3] = t0;
+    $[0] = b;
+    $[1] = t0;
   } else {
-    t0 = $[3];
+    t0 = $[1];
   }
   return t0;
 }

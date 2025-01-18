@@ -21,7 +21,12 @@ function Component(props) {
 
 export const FIXTURE_ENTRYPOINT = {
   fn: Component,
-  params: [{ cond: true, value: 42 }],
+  params: [{cond: true, value: 42}],
+  sequentialRenders: [
+    {cond: true, value: 3.14},
+    {cond: false, value: 3.14},
+    {cond: true, value: 42},
+  ],
 };
 
 ```
@@ -31,11 +36,18 @@ export const FIXTURE_ENTRYPOINT = {
 ```javascript
 import { c as _c } from "react/compiler-runtime";
 function Component(props) {
-  const $ = _c(6);
-  let x;
-  let y;
-  if ($[0] !== props) {
-    x = {};
+  const $ = _c(4);
+  let t0;
+  if ($[0] === Symbol.for("react.memo_cache_sentinel")) {
+    t0 = {};
+    $[0] = t0;
+  } else {
+    t0 = $[0];
+  }
+  const x = t0;
+  let t1;
+  if ($[1] !== props.cond || $[2] !== props.value) {
+    let y;
     if (props.cond) {
       y = [props.value];
     } else {
@@ -43,31 +55,30 @@ function Component(props) {
     }
 
     y.push(x);
-    $[0] = props;
-    $[1] = x;
-    $[2] = y;
+
+    t1 = [x, y];
+    $[1] = props.cond;
+    $[2] = props.value;
+    $[3] = t1;
   } else {
-    x = $[1];
-    y = $[2];
+    t1 = $[3];
   }
-  let t0;
-  if ($[3] !== x || $[4] !== y) {
-    t0 = [x, y];
-    $[3] = x;
-    $[4] = y;
-    $[5] = t0;
-  } else {
-    t0 = $[5];
-  }
-  return t0;
+  return t1;
 }
 
 export const FIXTURE_ENTRYPOINT = {
   fn: Component,
   params: [{ cond: true, value: 42 }],
+  sequentialRenders: [
+    { cond: true, value: 3.14 },
+    { cond: false, value: 3.14 },
+    { cond: true, value: 42 },
+  ],
 };
 
 ```
       
 ### Eval output
-(kind: ok) [{},[42,"[[ cyclic ref *1 ]]"]]
+(kind: ok) [{},[3.14,"[[ cyclic ref *1 ]]"]]
+[{},["[[ cyclic ref *1 ]]"]]
+[{},[42,"[[ cyclic ref *1 ]]"]]

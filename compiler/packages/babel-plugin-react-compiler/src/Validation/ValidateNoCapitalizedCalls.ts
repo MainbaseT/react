@@ -4,9 +4,9 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import { CompilerError, EnvironmentConfig } from "..";
-import { HIRFunction, IdentifierId } from "../HIR";
-import { DEFAULT_GLOBALS } from "../HIR/Globals";
+import {CompilerError, EnvironmentConfig} from '..';
+import {HIRFunction, IdentifierId} from '../HIR';
+import {DEFAULT_GLOBALS} from '../HIR/Globals';
 
 export function validateNoCapitalizedCalls(fn: HIRFunction): void {
   const envConfig: EnvironmentConfig = fn.env.config;
@@ -29,24 +29,24 @@ export function validateNoCapitalizedCalls(fn: HIRFunction): void {
   const capitalLoadGlobals = new Map<IdentifierId, string>();
   const capitalizedProperties = new Map<IdentifierId, string>();
   const reason =
-    "Capitalized functions are reserved for components, which must be invoked with JSX. If this is a component, render it with JSX. Otherwise, ensure that it has no hook calls and rename it to begin with a lowercase letter. Alternatively, if you know for a fact that this function is not a component, you can allowlist it via the compiler config";
+    'Capitalized functions are reserved for components, which must be invoked with JSX. If this is a component, render it with JSX. Otherwise, ensure that it has no hook calls and rename it to begin with a lowercase letter. Alternatively, if you know for a fact that this function is not a component, you can allowlist it via the compiler config';
   for (const [, block] of fn.body.blocks) {
-    for (const { lvalue, value } of block.instructions) {
+    for (const {lvalue, value} of block.instructions) {
       switch (value.kind) {
-        case "LoadGlobal": {
+        case 'LoadGlobal': {
           if (
-            value.name != "" &&
-            /^[A-Z]/.test(value.name) &&
+            value.binding.name != '' &&
+            /^[A-Z]/.test(value.binding.name) &&
             // We don't want to flag CONSTANTS()
-            !(value.name.toUpperCase() === value.name) &&
-            !isAllowed(value.name)
+            !(value.binding.name.toUpperCase() === value.binding.name) &&
+            !isAllowed(value.binding.name)
           ) {
-            capitalLoadGlobals.set(lvalue.identifier.id, value.name);
+            capitalLoadGlobals.set(lvalue.identifier.id, value.binding.name);
           }
 
           break;
         }
-        case "CallExpression": {
+        case 'CallExpression': {
           const calleeIdentifier = value.callee.identifier.id;
           const calleeName = capitalLoadGlobals.get(calleeIdentifier);
           if (calleeName != null) {
@@ -59,14 +59,14 @@ export function validateNoCapitalizedCalls(fn: HIRFunction): void {
           }
           break;
         }
-        case "PropertyLoad": {
+        case 'PropertyLoad': {
           // Start conservative and disallow all capitalized method calls
           if (/^[A-Z]/.test(value.property)) {
             capitalizedProperties.set(lvalue.identifier.id, value.property);
           }
           break;
         }
-        case "MethodCall": {
+        case 'MethodCall': {
           const propertyIdentifier = value.property.identifier.id;
           const propertyName = capitalizedProperties.get(propertyIdentifier);
           if (propertyName != null) {

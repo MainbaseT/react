@@ -2,18 +2,25 @@
 ## Input
 
 ```javascript
-import { Stringify, graphql } from "shared-runtime";
+import {Stringify, graphql} from 'shared-runtime';
 
 function useFragment(_arg1, _arg2) {
-  "use no forget";
+  'use no forget';
   return {
-    urls: ["url1", "url2", "url3"],
-    comments: ["comment1"],
+    urls: ['url1', 'url2', 'url3'],
+    comments: ['comment1'],
   };
 }
 
 function Component(props) {
-  const post = useFragment(graphql`...`, props.post);
+  const post = useFragment(
+    graphql`
+      fragment F on T {
+        id
+      }
+    `,
+    props.post
+  );
   const allUrls = [];
   // `media` and `urls` are exported from the scope that will wrap this code,
   // but `comments` is not (it doesn't need to be memoized, bc the callback
@@ -22,8 +29,8 @@ function Component(props) {
   // out of the scope, and the destructure statement ends up turning into
   // a reassignment, instead of a const declaration. this means we try to
   // reassign `comments` when there's no declaration for it.
-  const { media = null, comments = [], urls = [] } = post;
-  const onClick = (e) => {
+  const {media = null, comments = [], urls = []} = post;
+  const onClick = e => {
     if (!comments.length) {
       return;
     }
@@ -35,7 +42,7 @@ function Component(props) {
 
 export const FIXTURE_ENTRYPOINT = {
   fn: Component,
-  params: [{ post: {} }],
+  params: [{post: {}}],
   isComponent: true,
 };
 
@@ -56,69 +63,61 @@ function useFragment(_arg1, _arg2) {
 }
 
 function Component(props) {
-  const $ = _c(14);
-  const post = useFragment(graphql`...`, props.post);
-  let media;
-  let allUrls;
-  let onClick;
+  const $ = _c(8);
+  const post = useFragment(
+    graphql`
+      fragment F on T {
+        id
+      }
+    `,
+    props.post,
+  );
+  let t0;
   if ($[0] !== post) {
-    allUrls = [];
+    const allUrls = [];
 
-    const { media: t0, comments: t1, urls: t2 } = post;
-    media = t0 === undefined ? null : t0;
-    let t3;
-    if ($[4] !== t1) {
-      t3 = t1 === undefined ? [] : t1;
-      $[4] = t1;
-      $[5] = t3;
-    } else {
-      t3 = $[5];
-    }
-    const comments = t3;
+    const { media: t1, comments: t2, urls: t3 } = post;
+    const media = t1 === undefined ? null : t1;
     let t4;
-    if ($[6] !== t2) {
+    if ($[2] !== t2) {
       t4 = t2 === undefined ? [] : t2;
-      $[6] = t2;
-      $[7] = t4;
+      $[2] = t2;
+      $[3] = t4;
     } else {
-      t4 = $[7];
+      t4 = $[3];
     }
-    const urls = t4;
+    const comments = t4;
     let t5;
-    if ($[8] !== comments.length) {
-      t5 = (e) => {
+    if ($[4] !== t3) {
+      t5 = t3 === undefined ? [] : t3;
+      $[4] = t3;
+      $[5] = t5;
+    } else {
+      t5 = $[5];
+    }
+    const urls = t5;
+    let t6;
+    if ($[6] !== comments.length) {
+      t6 = (e) => {
         if (!comments.length) {
           return;
         }
 
         console.log(comments.length);
       };
-      $[8] = comments.length;
-      $[9] = t5;
+      $[6] = comments.length;
+      $[7] = t6;
     } else {
-      t5 = $[9];
+      t6 = $[7];
     }
-    onClick = t5;
+    const onClick = t6;
 
     allUrls.push(...urls);
-    $[0] = post;
-    $[1] = media;
-    $[2] = allUrls;
-    $[3] = onClick;
-  } else {
-    media = $[1];
-    allUrls = $[2];
-    onClick = $[3];
-  }
-  let t0;
-  if ($[10] !== media || $[11] !== allUrls || $[12] !== onClick) {
     t0 = <Stringify media={media} allUrls={allUrls} onClick={onClick} />;
-    $[10] = media;
-    $[11] = allUrls;
-    $[12] = onClick;
-    $[13] = t0;
+    $[0] = post;
+    $[1] = t0;
   } else {
-    t0 = $[13];
+    t0 = $[1];
   }
   return t0;
 }

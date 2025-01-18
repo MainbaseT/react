@@ -2,9 +2,9 @@
 ## Input
 
 ```javascript
-import fbt from "fbt";
+import fbt from 'fbt';
 
-function Component({ name, data, icon }) {
+function Component({name, data, icon}) {
   return (
     <Text type="body4">
       <fbt desc="Lorem ipsum">
@@ -32,7 +32,7 @@ function Component(t0) {
   const $ = _c(4);
   const { name, data, icon } = t0;
   let t1;
-  if ($[0] !== name || $[1] !== icon || $[2] !== data) {
+  if ($[0] !== data || $[1] !== icon || $[2] !== name) {
     t1 = (
       <Text type="body4">
         {fbt._(
@@ -41,12 +41,12 @@ function Component(t0) {
             fbt._param(
               "item author",
 
-              <Text type="h4">{name}</Text>
+              <Text type="h4">{name}</Text>,
             ),
             fbt._param(
               "icon",
 
-              icon
+              icon,
             ),
             fbt._implicitParam(
               "=m2",
@@ -54,16 +54,16 @@ function Component(t0) {
                 {fbt._("{item details}", [fbt._param("item details", data)], {
                   hk: "4jLfVq",
                 })}
-              </Text>
+              </Text>,
             ),
           ],
-          { hk: "2HLm2j" }
+          { hk: "2HLm2j" },
         )}
       </Text>
     );
-    $[0] = name;
+    $[0] = data;
     $[1] = icon;
-    $[2] = data;
+    $[2] = name;
     $[3] = t1;
   } else {
     t1 = $[3];

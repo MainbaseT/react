@@ -5,11 +5,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import { Binding, NodePath } from "@babel/traverse";
-import * as t from "@babel/types";
-import { CompilerError } from "../CompilerError";
-import { Environment } from "./Environment";
-import { Global } from "./Globals";
+import {Binding, NodePath} from '@babel/traverse';
+import * as t from '@babel/types';
+import {CompilerError} from '../CompilerError';
+import {Environment} from './Environment';
 import {
   BasicBlock,
   BlockId,
@@ -22,18 +21,22 @@ import {
   IdentifierId,
   Instruction,
   Place,
+  SourceLocation,
   Terminal,
+  VariableBinding,
   makeBlockId,
+  makeDeclarationId,
   makeIdentifierName,
   makeInstructionId,
+  makeTemporaryIdentifier,
   makeType,
-} from "./HIR";
-import { printInstruction } from "./PrintHIR";
+} from './HIR';
+import {printInstruction} from './PrintHIR';
 import {
   eachTerminalSuccessor,
   mapTerminalSuccessors,
   terminalFallthrough,
-} from "./visitors";
+} from './visitors';
 
 /*
  * *******************************************************************************************
@@ -53,31 +56,31 @@ export type WipBlock = {
 type Scope = LoopScope | LabelScope | SwitchScope;
 
 type LoopScope = {
-  kind: "loop";
+  kind: 'loop';
   label: string | null;
   continueBlock: BlockId;
   breakBlock: BlockId;
 };
 
 type SwitchScope = {
-  kind: "switch";
+  kind: 'switch';
   breakBlock: BlockId;
   label: string | null;
 };
 
 type LabelScope = {
-  kind: "label";
+  kind: 'label';
   label: string;
   breakBlock: BlockId;
 };
 
 function newBlock(id: BlockId, kind: BlockKind): WipBlock {
-  return { id, kind, instructions: [] };
+  return {id, kind, instructions: []};
 }
 
 export type Bindings = Map<
   string,
-  { node: t.Identifier; identifier: Identifier }
+  {node: t.Identifier; identifier: Identifier}
 >;
 
 /*
@@ -89,13 +92,13 @@ export type ExceptionsMode =
    * Mode used for code not covered by explicit exception handling, any
    * errors are assumed to be thrown out of the function
    */
-  | { kind: "ThrowExceptions" }
+  | {kind: 'ThrowExceptions'}
   /*
    * Mode used for code that *is* covered by explicit exception handling
    * (ie try/catch), which requires modeling the possibility of control
    * flow to the exception handler.
    */
-  | { kind: "CatchExceptions"; handler: BlockId };
+  | {kind: 'CatchExceptions'; handler: BlockId};
 
 // Helper class for constructing a CFG
 export default class HIRBuilder {
@@ -109,6 +112,11 @@ export default class HIRBuilder {
   #exceptionHandlerStack: Array<BlockId> = [];
   parentFunction: NodePath<t.Function>;
   errors: CompilerError = new CompilerError();
+  /**
+   * Traversal context: counts the number of `fbt` tag parents
+   * of the current babel node.
+   */
+  fbtDepth: number = 0;
 
   get nextIdentifierId(): IdentifierId {
     return this.#env.nextIdentifierId;
@@ -130,14 +138,14 @@ export default class HIRBuilder {
     env: Environment,
     parentFunction: NodePath<t.Function>, // the outermost function being compiled
     bindings: Bindings | null = null,
-    context: Array<t.Identifier> | null = null
+    context: Array<t.Identifier> | null = null,
   ) {
     this.#env = env;
     this.#bindings = bindings ?? new Map();
     this.parentFunction = parentFunction;
     this.#context = context ?? [];
     this.#entry = makeBlockId(env.nextBlockId);
-    this.#current = newBlock(this.#entry, "block");
+    this.#current = newBlock(this.#entry, 'block');
   }
 
   currentBlockKind(): BlockKind {
@@ -152,13 +160,13 @@ export default class HIRBuilder {
       const continuationBlock = this.reserve(this.currentBlockKind());
       this.terminateWithContinuation(
         {
-          kind: "maybe-throw",
+          kind: 'maybe-throw',
           continuation: continuationBlock.id,
           handler: exceptionHandler,
           id: makeInstructionId(0),
           loc: instruction.loc,
         },
-        continuationBlock
+        continuationBlock,
       );
     }
   }
@@ -174,48 +182,17 @@ export default class HIRBuilder {
     return handler ?? null;
   }
 
-  makeTemporary(): Identifier {
+  makeTemporary(loc: SourceLocation): Identifier {
     const id = this.nextIdentifierId;
-    return {
-      id,
-      name: null,
-      mutableRange: { start: makeInstructionId(0), end: makeInstructionId(0) },
-      scope: null,
-      type: makeType(),
-    };
-  }
-
-  resolveGlobal(
-    path: NodePath<t.Identifier | t.JSXIdentifier>
-  ): (Global & { name: string }) | null {
-    const name = path.node.name;
-    const resolvedGlobal = this.#env.getGlobalDeclaration(name);
-    if (resolvedGlobal) {
-      return {
-        ...resolvedGlobal,
-        name,
-      };
-    } else {
-      // if env records no global with the given name, load it as an unknown type
-      return {
-        kind: "Poly",
-        name,
-      };
-    }
+    return makeTemporaryIdentifier(id, loc);
   }
 
   #resolveBabelBinding(
-    path: NodePath<t.Identifier | t.JSXIdentifier>
+    path: NodePath<t.Identifier | t.JSXIdentifier>,
   ): Binding | null {
     const originalName = path.node.name;
     const binding = path.scope.getBinding(originalName);
     if (binding == null) {
-      return null;
-    }
-    // Check if the binding is from module scope, if so return null
-    const outerBinding =
-      this.parentFunction.scope.parent.getBinding(originalName);
-    if (binding === outerBinding) {
       return null;
     }
     return binding;
@@ -252,23 +229,76 @@ export default class HIRBuilder {
    * ```
    */
   resolveIdentifier(
-    path: NodePath<t.Identifier | t.JSXIdentifier>
-  ): Identifier | null {
+    path: NodePath<t.Identifier | t.JSXIdentifier>,
+  ): VariableBinding {
     const originalName = path.node.name;
     const babelBinding = this.#resolveBabelBinding(path);
     if (babelBinding == null) {
-      return null;
+      return {kind: 'Global', name: originalName};
     }
+
+    // Check if the binding is from module scope
+    const outerBinding =
+      this.parentFunction.scope.parent.getBinding(originalName);
+    if (babelBinding === outerBinding) {
+      const path = babelBinding.path;
+      if (path.isImportDefaultSpecifier()) {
+        const importDeclaration =
+          path.parentPath as NodePath<t.ImportDeclaration>;
+        return {
+          kind: 'ImportDefault',
+          name: originalName,
+          module: importDeclaration.node.source.value,
+        };
+      } else if (path.isImportSpecifier()) {
+        const importDeclaration =
+          path.parentPath as NodePath<t.ImportDeclaration>;
+        return {
+          kind: 'ImportSpecifier',
+          name: originalName,
+          module: importDeclaration.node.source.value,
+          imported:
+            path.node.imported.type === 'Identifier'
+              ? path.node.imported.name
+              : path.node.imported.value,
+        };
+      } else if (path.isImportNamespaceSpecifier()) {
+        const importDeclaration =
+          path.parentPath as NodePath<t.ImportDeclaration>;
+        return {
+          kind: 'ImportNamespace',
+          name: originalName,
+          module: importDeclaration.node.source.value,
+        };
+      } else {
+        return {
+          kind: 'ModuleLocal',
+          name: originalName,
+        };
+      }
+    }
+
     const resolvedBinding = this.resolveBinding(babelBinding.identifier);
     if (resolvedBinding.name && resolvedBinding.name.value !== originalName) {
       babelBinding.scope.rename(originalName, resolvedBinding.name.value);
     }
-    return resolvedBinding;
+    return {
+      kind: 'Identifier',
+      identifier: resolvedBinding,
+      bindingKind: babelBinding.kind,
+    };
   }
 
   isContextIdentifier(path: NodePath<t.Identifier | t.JSXIdentifier>): boolean {
     const binding = this.#resolveBabelBinding(path);
     if (binding) {
+      // Check if the binding is from module scope, if so return null
+      const outerBinding = this.parentFunction.scope.parent.getBinding(
+        path.node.name,
+      );
+      if (binding === outerBinding) {
+        return false;
+      }
       return this.#env.isContextIdentifier(binding.identifier);
     } else {
       return false;
@@ -276,6 +306,12 @@ export default class HIRBuilder {
   }
 
   resolveBinding(node: t.Identifier): Identifier {
+    if (node.name === 'fbt') {
+      CompilerError.throwTodo({
+        reason: 'Support local variables named "fbt"',
+        loc: node.loc ?? null,
+      });
+    }
     const originalName = node.name;
     let name = originalName;
     let index = 0;
@@ -285,6 +321,7 @@ export default class HIRBuilder {
         const id = this.nextIdentifierId;
         const identifier: Identifier = {
           id,
+          declarationId: makeDeclarationId(id),
           name: makeIdentifierName(name),
           mutableRange: {
             start: makeInstructionId(0),
@@ -292,8 +329,9 @@ export default class HIRBuilder {
           },
           scope: null,
           type: makeType(),
+          loc: node.loc ?? GeneratedSource,
         };
-        this.#bindings.set(name, { node, identifier });
+        this.#bindings.set(name, {node, identifier});
         return identifier;
       } else if (mapping.node === node) {
         return mapping.identifier;
@@ -314,7 +352,7 @@ export default class HIRBuilder {
       if (
         !rpoBlocks.has(id) &&
         block.instructions.some(
-          (instr) => instr.value.kind === "FunctionExpression"
+          instr => instr.value.kind === 'FunctionExpression',
         )
       ) {
         CompilerError.throwTodo({
@@ -338,7 +376,7 @@ export default class HIRBuilder {
 
   // Terminate the current block w the given terminal, and start a new block
   terminate(terminal: Terminal, nextBlockKind: BlockKind | null): void {
-    const { id: blockId, kind, instructions } = this.#current;
+    const {id: blockId, kind, instructions} = this.#current;
     this.#completed.set(blockId, {
       kind,
       id: blockId,
@@ -358,7 +396,7 @@ export default class HIRBuilder {
    * reserved block as the new current block
    */
   terminateWithContinuation(terminal: Terminal, continuation: WipBlock): void {
-    const { id: blockId, kind, instructions } = this.#current;
+    const {id: blockId, kind, instructions} = this.#current;
     this.#completed.set(blockId, {
       kind: kind,
       id: blockId,
@@ -381,7 +419,7 @@ export default class HIRBuilder {
 
   // Save a previously reserved block as completed
   complete(block: WipBlock, terminal: Terminal): void {
-    const { id: blockId, kind, instructions } = block;
+    const {id: blockId, kind, instructions} = block;
     this.#completed.set(blockId, {
       kind,
       id: blockId,
@@ -400,7 +438,7 @@ export default class HIRBuilder {
     const current = this.#current;
     this.#current = wip;
     const terminal = fn();
-    const { id: blockId, kind, instructions } = this.#current;
+    const {id: blockId, kind, instructions} = this.#current;
     this.#completed.set(blockId, {
       kind,
       id: blockId,
@@ -428,7 +466,7 @@ export default class HIRBuilder {
 
   label<T>(label: string, breakBlock: BlockId, fn: () => T): T {
     this.#scopes.push({
-      kind: "label",
+      kind: 'label',
       breakBlock,
       label,
     });
@@ -436,22 +474,22 @@ export default class HIRBuilder {
     const last = this.#scopes.pop();
     CompilerError.invariant(
       last != null &&
-        last.kind === "label" &&
+        last.kind === 'label' &&
         last.label === label &&
         last.breakBlock === breakBlock,
       {
-        reason: "Mismatched label",
+        reason: 'Mismatched label',
         description: null,
         loc: null,
         suggestions: null,
-      }
+      },
     );
     return value;
   }
 
   switch<T>(label: string | null, breakBlock: BlockId, fn: () => T): T {
     this.#scopes.push({
-      kind: "switch",
+      kind: 'switch',
       breakBlock,
       label,
     });
@@ -459,15 +497,15 @@ export default class HIRBuilder {
     const last = this.#scopes.pop();
     CompilerError.invariant(
       last != null &&
-        last.kind === "switch" &&
+        last.kind === 'switch' &&
         last.label === label &&
         last.breakBlock === breakBlock,
       {
-        reason: "Mismatched label",
+        reason: 'Mismatched label',
         description: null,
         loc: null,
         suggestions: null,
-      }
+      },
     );
     return value;
   }
@@ -482,10 +520,10 @@ export default class HIRBuilder {
     continueBlock: BlockId,
     // block following the loop. "break" jumps here.
     breakBlock: BlockId,
-    fn: () => T
+    fn: () => T,
   ): T {
     this.#scopes.push({
-      kind: "loop",
+      kind: 'loop',
       label,
       continueBlock,
       breakBlock,
@@ -494,16 +532,16 @@ export default class HIRBuilder {
     const last = this.#scopes.pop();
     CompilerError.invariant(
       last != null &&
-        last.kind === "loop" &&
+        last.kind === 'loop' &&
         last.label === label &&
         last.continueBlock === continueBlock &&
         last.breakBlock === breakBlock,
       {
-        reason: "Mismatched loops",
+        reason: 'Mismatched loops',
         description: null,
         loc: null,
         suggestions: null,
-      }
+      },
     );
     return value;
   }
@@ -517,14 +555,14 @@ export default class HIRBuilder {
       const scope = this.#scopes[ii];
       if (
         (label === null &&
-          (scope.kind === "loop" || scope.kind === "switch")) ||
+          (scope.kind === 'loop' || scope.kind === 'switch')) ||
         label === scope.label
       ) {
         return scope.breakBlock;
       }
     }
     CompilerError.invariant(false, {
-      reason: "Expected a loop or switch to be in scope",
+      reason: 'Expected a loop or switch to be in scope',
       description: null,
       loc: null,
       suggestions: null,
@@ -539,13 +577,13 @@ export default class HIRBuilder {
   lookupContinue(label: string | null): BlockId {
     for (let ii = this.#scopes.length - 1; ii >= 0; ii--) {
       const scope = this.#scopes[ii];
-      if (scope.kind === "loop") {
+      if (scope.kind === 'loop') {
         if (label === null || label === scope.label) {
           return scope.continueBlock;
         }
       } else if (label !== null && scope.label === label) {
         CompilerError.invariant(false, {
-          reason: "Continue may only refer to a labeled loop",
+          reason: 'Continue may only refer to a labeled loop',
           description: null,
           loc: null,
           suggestions: null,
@@ -553,7 +591,7 @@ export default class HIRBuilder {
       }
     }
     CompilerError.invariant(false, {
-      reason: "Expected a loop to be in scope",
+      reason: 'Expected a loop to be in scope',
       description: null,
       loc: null,
       suggestions: null,
@@ -602,7 +640,7 @@ function _shrink(func: HIR): void {
     }
     reachable.add(blockId);
     const block = func.blocks.get(blockId)!;
-    block.terminal = mapTerminalSuccessors(block.terminal, (prevTarget) => {
+    block.terminal = mapTerminalSuccessors(block.terminal, prevTarget => {
       const target = resolveBlockTarget(prevTarget);
       queue.push(target);
       return target;
@@ -618,7 +656,7 @@ function _shrink(func: HIR): void {
 export function removeUnreachableForUpdates(fn: HIR): void {
   for (const [, block] of fn.blocks) {
     if (
-      block.terminal.kind === "for" &&
+      block.terminal.kind === 'for' &&
       block.terminal.update !== null &&
       !fn.blocks.has(block.terminal.update)
     ) {
@@ -639,10 +677,10 @@ export function removeDeadDoWhileStatements(func: HIR): void {
    * MergeConsecutiveBlocks figures out how to merge as appropriate.
    */
   for (const [_, block] of func.blocks) {
-    if (block.terminal.kind === "do-while") {
+    if (block.terminal.kind === 'do-while') {
       if (!visited.has(block.terminal.test)) {
         block.terminal = {
-          kind: "goto",
+          kind: 'goto',
           block: block.terminal.loop,
           variant: GotoVariant.Break,
           id: block.terminal.id,
@@ -669,7 +707,7 @@ export function reversePostorderBlocks(func: HIR): void {
  * may be in the output: blocks will be removed in the case of unreachable code in
  * the input.
  */
-function getReversePostorderedBlocks(func: HIR): HIR["blocks"] {
+function getReversePostorderedBlocks(func: HIR): HIR['blocks'] {
   const visited: Set<BlockId> = new Set();
   const used: Set<BlockId> = new Set();
   const usedFallthroughs: Set<BlockId> = new Set();
@@ -741,7 +779,7 @@ function getReversePostorderedBlocks(func: HIR): HIR["blocks"] {
         ...block,
         instructions: [],
         terminal: {
-          kind: "unreachable",
+          kind: 'unreachable',
           id: block.terminal.id,
           loc: block.terminal.loc,
         },
@@ -782,7 +820,7 @@ export function markPredecessors(func: HIR): void {
       return;
     }
     CompilerError.invariant(block != null, {
-      reason: "unexpected missing block",
+      reason: 'unexpected missing block',
       description: `block ${blockId}`,
       loc: GeneratedSource,
     });
@@ -795,7 +833,7 @@ export function markPredecessors(func: HIR): void {
     }
     visited.add(blockId);
 
-    const { terminal } = block;
+    const {terminal} = block;
 
     for (const successor of eachTerminalSuccessor(terminal)) {
       visit(successor, block);
@@ -810,7 +848,7 @@ export function markPredecessors(func: HIR): void {
  */
 function getTargetIfIndirection(block: BasicBlock): number | null {
   return block.instructions.length === 0 &&
-    block.terminal.kind === "goto" &&
+    block.terminal.kind === 'goto' &&
     block.terminal.variant === GotoVariant.Break
     ? block.terminal.block
     : null;
@@ -823,14 +861,14 @@ function getTargetIfIndirection(block: BasicBlock): number | null {
 export function removeUnnecessaryTryCatch(fn: HIR): void {
   for (const [, block] of fn.blocks) {
     if (
-      block.terminal.kind === "try" &&
+      block.terminal.kind === 'try' &&
       !fn.blocks.has(block.terminal.handler)
     ) {
       const handlerId = block.terminal.handler;
       const fallthroughId = block.terminal.fallthrough;
       const fallthrough = fn.blocks.get(fallthroughId);
       block.terminal = {
-        kind: "goto",
+        kind: 'goto',
         block: block.terminal.block,
         id: makeInstructionId(0),
         loc: block.terminal.loc,
@@ -849,18 +887,48 @@ export function removeUnnecessaryTryCatch(fn: HIR): void {
   }
 }
 
-export function createTemporaryPlace(env: Environment): Place {
+export function createTemporaryPlace(
+  env: Environment,
+  loc: SourceLocation,
+): Place {
   return {
-    kind: "Identifier",
-    identifier: {
-      id: env.nextIdentifierId,
-      mutableRange: { start: makeInstructionId(0), end: makeInstructionId(0) },
-      name: null,
-      scope: null,
-      type: makeType(),
-    },
+    kind: 'Identifier',
+    identifier: makeTemporaryIdentifier(env.nextIdentifierId, loc),
     reactive: false,
     effect: Effect.Unknown,
     loc: GeneratedSource,
   };
+}
+
+/**
+ * Clones an existing Place, returning a new temporary Place that shares the
+ * same metadata properties as the original place (effect, reactive flag, type)
+ * but has a new, temporary Identifier.
+ */
+export function clonePlaceToTemporary(env: Environment, place: Place): Place {
+  const temp = createTemporaryPlace(env, place.loc);
+  temp.effect = place.effect;
+  temp.identifier.type = place.identifier.type;
+  temp.reactive = place.reactive;
+  return temp;
+}
+
+/**
+ * Fix scope and identifier ranges to account for renumbered instructions
+ */
+export function fixScopeAndIdentifierRanges(func: HIR): void {
+  for (const [, block] of func.blocks) {
+    const terminal = block.terminal;
+    if (terminal.kind === 'scope' || terminal.kind === 'pruned-scope') {
+      /*
+       * Scope ranges should always align to start at the 'scope' terminal
+       * and end at the first instruction of the fallthrough block
+       */
+      const fallthroughBlock = func.blocks.get(terminal.fallthrough)!;
+      const firstId =
+        fallthroughBlock.instructions[0]?.id ?? fallthroughBlock.terminal.id;
+      terminal.scope.range.start = terminal.id;
+      terminal.scope.range.end = firstId;
+    }
+  }
 }
